@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>みどり会 会員証</title>
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', sans-serif; background: #f5f5f5; min-height: 100vh; }
+#screen-loading { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; gap: 16px; }
+.spinner { width: 40px; height: 40px; border: 4px solid #e0e0e0; border-top-color: #4CAF50; border-radius: 50%; animation: spin 0.8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+#screen-error { display: none; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; text-align: center; gap: 12px; }
+#screen-error .icon { font-size: 48px; }
+#screen-error h2 { color: #333; }
+#screen-error p { color: #666; font-size: 14px; line-height: 1.6; }
+#screen-type { display: none; padding: 40px 24px; min-height: 100vh; flex-direction: column; align-items: center; justify-content: center; }
+#screen-type h2 { font-size: 20px; color: #333; text-align: center; margin-bottom: 10px; }
+#screen-type p { font-size: 14px; color: #666; text-align: center; margin-bottom: 40px; line-height: 1.6; }
+.type-buttons { display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: 320px; }
+.btn-type { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 18px 24px; border-radius: 14px; border: none; font-size: 17px; font-weight: bold; cursor: pointer; box-shadow: 0 3px 10px rgba(0,0,0,0.12); transition: opacity 0.15s; }
+.btn-type:active { opacity: 0.75; }
+.btn-type.yes { background: linear-gradient(135deg, #4CAF50, #2E7D32); color: white; }
+.btn-type.no { background: white; color: #333; border: 2px solid #e0e0e0; }
+.btn-type .icon { font-size: 22px; }
+#screen-select { display: none; padding: 20px 16px; }
+#screen-select h2 { text-align: center; color: #333; font-size: 18px; margin-bottom: 8px; }
+#screen-select p { text-align: center; color: #666; font-size: 13px; margin-bottom: 16px; }
+.search-box { position: relative; margin-bottom: 16px; }
+.search-box input { width: 100%; padding: 12px 16px 12px 40px; border: 2px solid #e0e0e0; border-radius: 24px; font-size: 15px; outline: none; transition: border-color 0.2s; }
+.search-box input:focus { border-color: #4CAF50; }
+.search-box::before { content: '🔍'; position: absolute; left: 14px; top: 50%; transform: translateY(-50%); font-size: 14px; }
+.company-list { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); max-height: 60vh; overflow-y: auto; }
+.company-item { display: flex; align-items: center; padding: 14px 16px; border-bottom: 1px solid #f0f0f0; cursor: pointer; font-size: 15px; color: #333; }
+.company-item:last-child { border-bottom: none; }
+.company-item:active { background: #f0f9f0; }
+.company-item::after { content: '›'; margin-left: auto; color: #ccc; font-size: 20px; }
+.no-result { padding: 24px; text-align: center; color: #999; font-size: 14px; }
+#screen-card { display: none; padding: 20px 16px; }
+.card { background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.12); margin-bottom: 16px; }
+.card-header { background: linear-gradient(135deg, #4CAF50, #2E7D32); padding: 20px; text-align: center; color: white; }
+.card-header h1 { font-size: 22px; font-weight: bold; }
+.card-header p { font-size: 13px; opacity: 0.8; margin-top: 4px; }
+.card-body { padding: 20px; }
+.qr-section { text-align: center; padding: 16px 0 8px; }
+.qr-section p { font-size: 11px; color: #999; margin-bottom: 12px; }
+#card-qr { width: 180px; height: 180px; margin: 0 auto; }
+.card-info { margin-top: 14px; text-align: center; }
+.card-info p { color: #333; margin-bottom: 6px; }
+</style>
+</head>
+<body>
+
+<div id="screen-loading">
+  <div class="spinner"></div>
+  <p style="color:#999; font-size:14px;">読み込み中...</p>
+</div>
+
+<div id="screen-error">
+  <div class="icon">⚠</div>
+  <h2>エラーが発生しました</h2>
+  <p id="error-message">LINEアプリから開き直してください。</p>
+</div>
+
+<div id="screen-type">
+  <h2>ようこそ、みどり会へ！</h2>
+  <p>メンバー会社の<br>関係者様ですか？</p>
+  <div class="type-buttons">
+    <button class="btn-type yes" onclick="onTypeSelect('member')">
+      <span class="icon">🏢</span> はい（会社関係者）
+    </button>
+    <button class="btn-type no" onclick="onTypeSelect('guest')">
+      <span class="icon">👤</span> いいえ
+    </button>
+  </div>
+</div>
+
+<div id="screen-select">
+  <h2>ご所属の会社を選択</h2>
+  <p>会社名で検索するか、一覧から選んでください</p>
+  <div class="search-box">
+    <input type="text" id="search-input" placeholder="例：三菱、積水、阪急..." oninput="filterCompanies()">
+  </div>
+  <div class="company-list" id="company-list"></div>
+</div>
+
+<div id="screen-card">
+  <div class="card">
+    <div class="card-header">
+      <h1>みどり会</h1>
+      <p>優待販売会 会員証</p>
+    </div>
+    <div class="card-body">
+      <div class="qr-section">
+        <p>会場でQRコードをご提示ください</p>
+        <div id="card-qr"></div>
+      </div>
+      <div class="card-info">
+        <p>会員番号：<strong id="card-member-id"></strong></p>
+        <p id="card-company-row">所属：<strong id="card-company"></strong></p>
+      </div>
+    </div>
+  </div>
+  <p style="text-align:center; font-size:12px; color:#999;">スクショして保存できます</p>
+  <div id="change-company-wrap" style="text-align:center; margin-top:8px; display:none;">
+    <button onclick="confirmChangeCompany()"
+      style="background:none; border:none; color:#bbb; font-size:12px; text-decoration:underline; cursor:pointer;">
+      所属会社を変更する
+    </button>
+  </div>
+</div>
+
+<div id="confirm-overlay"
+  style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:100; align-items:flex-end; justify-content:center;">
+  <div style="background:white; width:100%; border-radius:20px 20px 0 0; padding:28px 20px 40px;">
+    <p style="font-size:16px; font-weight:bold; text-align:center; margin-bottom:8px;">所属会社を変更しますか？</p>
+    <p style="font-size:13px; color:#888; text-align:center; margin-bottom:24px;">現在の会員番号はそのまま引き継がれます</p>
+    <button onclick="doChangeCompany()"
+      style="width:100%; padding:14px; background:linear-gradient(135deg,#4CAF50,#2E7D32); color:white; border:none; border-radius:12px; font-size:16px; font-weight:bold; cursor:pointer; margin-bottom:12px;">
+      変更する
+    </button>
+    <button onclick="closeConfirm()"
+      style="width:100%; padding:14px; background:white; color:#333; border:2px solid #e0e0e0; border-radius:12px; font-size:16px; cursor:pointer;">
+      キャンセル
+    </button>
+  </div>
+</div>
+
+<script src="https://static.line-scdn.net/liff/edge/versions/2.22.3/sdk.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+<script>
+const LIFF_ID = '2008995639-VaOyl7xa';
+const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbyKgFVCRyg3UC0U5hzCFnI7vlxsGLJ01MqYa10bE--u0uPzAnoe1J7su2aNIJ1S5KJ-/exec';
+
+let lineUserId = "";
+let COMPANY_MASTER = [];
+let isChangingCompany = false;
+
+const SCREEN_DISPLAY = {
+  'screen-loading': 'flex',
+  'screen-error':   'flex',
+  'screen-type':    'flex',
+  'screen-select':  'block',
+  'screen-card':    'block',
+};
+
+function show(id) {
+  Object.keys(SCREEN_DISPLAY).forEach(s => {
+    document.getElementById(s).style.display = 'none';
+  });
+  document.getElementById(id).style.display = SCREEN_DISPLAY[id] || 'block';
+}
+
+function showError(msg) {
+  document.getElementById('error-message').textContent = msg;
+  show('screen-error');
+}
+
+window.onload = async function() {
+  try {
+    await liff.init({ liffId: LIFF_ID });
+
+    if (!liff.isLoggedIn()) {
+      liff.login();
+      return;
+    }
+
+    const token = liff.getDecodedIDToken();
+    lineUserId = token.sub;
+
+    const [result, cmp] = await Promise.all([
+      callApi({ action: 'getUser', userId: lineUserId }),
+      callApi({ action: 'getCompanies' })
+    ]);
+    COMPANY_MASTER = cmp.companies || [];
+
+    if (result.success && result.user) {
+      showCard(result.user);
+    } else {
+      show('screen-type');
+    }
+
+  } catch (err) {
+    showError('初期化エラー：' + (err?.message || String(err)));
+  }
+};
+
+async function callApi(params) {
+  const res = await fetch(GAS_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify(params)
+  });
+  return res.json();
+}
+
+async function onTypeSelect(type) {
+  if (type === 'guest') {
+    await registerNow('', 'guest');
+  } else {
+    renderCompanyList(COMPANY_MASTER.map(c => c.name));
+    show('screen-select');
+  }
+}
+
+function filterCompanies() {
+  const q = document.getElementById('search-input').value.trim();
+  const hits = COMPANY_MASTER.filter(c =>
+    c.name.includes(q) || (c.yomi && c.yomi.includes(q))
+  );
+  renderCompanyList(hits.map(c => c.name));
+}
+
+function renderCompanyList(list) {
+  const el = document.getElementById('company-list');
+  if (list.length === 0) {
+    el.innerHTML = '<div class="no-result">該当する会社が見つかりません</div>';
+    return;
+  }
+  el.innerHTML = list
+    .map(name => `<div class="company-item" onclick="selectCompany(${JSON.stringify(name)})">${name}</div>`)
+    .join('');
+}
+
+async function selectCompany(name) {
+  if (isChangingCompany) {
+    isChangingCompany = false;
+    await changeCompanyNow(name);
+  } else {
+    await registerNow(name, 'member');
+  }
+}
+
+async function registerNow(company, memberType) {
+  show('screen-loading');
+  try {
+    const result = await callApi({ action: 'register', userId: lineUserId, company, memberType });
+    if (result.success) { showCard(result.user); } else { showError(result.error); }
+  } catch (err) {
+    showError('登録エラー：' + (err?.message || String(err)));
+  }
+}
+
+function showCard(user) {
+  document.getElementById('card-member-id').textContent = user.memberId;
+  const companyRow = document.getElementById('card-company-row');
+  const changeWrap = document.getElementById('change-company-wrap');
+  if (user.memberType === 'guest') {
+    companyRow.style.display = 'none';
+    changeWrap.style.display = 'none';
+  } else {
+    companyRow.style.display = 'block';
+    changeWrap.style.display = 'block';
+    document.getElementById('card-company').textContent = user.company;
+  }
+  const box = document.getElementById('card-qr');
+  box.innerHTML = "";
+  new QRCode(box, { text: user.qrData, width: 180, height: 180 });
+  show('screen-card');
+}
+
+function confirmChangeCompany() {
+  document.getElementById('confirm-overlay').style.display = 'flex';
+}
+function closeConfirm() {
+  document.getElementById('confirm-overlay').style.display = 'none';
+}
+function doChangeCompany() {
+  closeConfirm();
+  renderCompanyList(COMPANY_MASTER.map(c => c.name));
+  document.getElementById('search-input').value = '';
+  isChangingCompany = true;
+  show('screen-select');
+}
+async function changeCompanyNow(company) {
+  show('screen-loading');
+  try {
+    const result = await callApi({ action: 'changeCompany', userId: lineUserId, company });
+    if (result.success) { showCard(result.user); } else { showError(result.error); }
+  } catch (err) {
+    showError('変更エラー：' + (err?.message || String(err)));
+  }
+}
+</script>
+</body>
+</html>
