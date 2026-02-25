@@ -1,2 +1,2 @@
-# middorikai
+# midorikai
 LINE
